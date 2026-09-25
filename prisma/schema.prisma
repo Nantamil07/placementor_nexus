@@ -1,0 +1,376 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  STUDENT
+  ALUMNI
+  MENTOR
+  RECRUITER
+  PLACEMENT_OFFICER
+  ADMIN
+}
+
+model Profile {
+  id          String      @id @default(cuid())
+  clerkId     String      @unique
+  email       String      @unique
+  username    String      @unique
+  fullName    String
+  avatarUrl   String?
+  bio         String?
+  headline    String?
+  role        UserRole    @default(STUDENT)
+  isOnboarded Boolean     @default(false)
+  skills      Skill[]
+  education   Education[]
+  projects    Project[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // --- Module 16: Admin ---
+  isSuspended         Boolean @default(false)
+  isVerifiedRecruiter Boolean @default(false)
+
+  companiesFollowed  CompanyFollower[]
+  jobsPosted         Job[]              @relation("JobPostedBy")
+  jobApplications    JobApplication[]
+  communityMembers   CommunityMember[]
+  posts              Post[]
+  comments           Comment[]
+  eventsOrganized    Event[]            @relation("EventOrganizer")
+  reportsFiled       Report[]           @relation("ReportsFiled")
+  reportsResolved    Report[]           @relation("ReportsResolved")
+  suspensionsIssued  UserSuspension[]   @relation("SuspensionsIssued")
+  suspensionsRecieved UserSuspension[]  @relation("SuspensionsReceived")
+  auditLogs          AuditLog[]
+  notificationsSent  AdminNotification[]
+
+  @@index([role])
+  @@index([username])
+  @@index([isSuspended])
+}
+
+model Skill {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  profiles Profile[]
+}
+
+model Education {
+  id           String    @id @default(cuid())
+  profileId    String
+  profile      Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  institution  String
+  degree       String
+  fieldOfStudy String?
+  startDate    DateTime
+  endDate      DateTime?
+  grade        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([profileId])
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  profileId   String
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  repoUrl     String?
+  liveUrl     String?
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([profileId])
+}
+
+// =========================================
+// Module 16 — Admin Panel domain models
+// =========================================
+
+enum JobType {
+  INTERNSHIP
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+}
+
+enum JobStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  REJECTED
+  SELECTED
+  WITHDRAWN
+}
+
+enum EventType {
+  WEBINAR
+  HACKATHON
+  PLACEMENT_DRIVE
+  WORKSHOP
+}
+
+enum EventStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum ReportType {
+  SPAM
+  ABUSE
+  HARASSMENT
+  INAPPROPRIATE_CONTENT
+  FAKE_JOB
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  REJECTED
+}
+
+enum ReportTargetType {
+  POST
+  COMMENT
+  USER
+  COMMUNITY
+  JOB
+  EVENT
+  COMPANY
+}
+
+enum NotificationAudience {
+  ALL
+  STUDENTS
+  ALUMNI
+  MENTORS
+  RECRUITERS
+  PLACEMENT_OFFICERS
+}
+
+model Company {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  name       String
+  logoUrl    String?
+  website    String?
+  location   String
+  about      String
+  isVerified Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  jobs      Job[]
+  followers CompanyFollower[]
+
+  @@index([isVerified])
+  @@index([slug])
+}
+
+model CompanyFollower {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, profileId])
+  @@index([companyId])
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  title       String
+  description String
+  location    String
+  type        JobType   @default(FULL_TIME)
+  status      JobStatus @default(PENDING)
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  postedById  String?
+  postedBy    Profile?  @relation("JobPostedBy", fields: [postedById], references: [id], onDelete: SetNull)
+  rejectionReason String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  applications JobApplication[]
+
+  @@index([status])
+  @@index([companyId])
+}
+
+model JobApplication {
+  id          String            @id @default(cuid())
+  jobId       String
+  job         Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicantId String
+  applicant   Profile           @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  status      ApplicationStatus @default(APPLIED)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([jobId, applicantId])
+  @@index([jobId])
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  isPrivate   Boolean  @default(false)
+  isRemoved   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members CommunityMember[]
+  posts   Post[]
+
+  @@index([isRemoved])
+}
+
+model CommunityMember {
+  id          String    @id @default(cuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  profileId   String
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  role        String    @default("MEMBER")
+  isBanned    Boolean   @default(false)
+  joinedAt    DateTime  @default(now())
+
+  @@unique([communityId, profileId])
+  @@index([communityId])
+}
+
+model Post {
+  id          String     @id @default(cuid())
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      Profile    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content     String
+  isRemoved   Boolean    @default(false)
+  removedReason String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  comments Comment[]
+
+  @@index([communityId])
+  @@index([isRemoved])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    Profile  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  isRemoved Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  type        EventType   @default(WEBINAR)
+  status      EventStatus @default(PENDING)
+  organizerId String
+  organizer   Profile     @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  startsAt    DateTime
+  endsAt      DateTime?
+  rejectionReason String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([status])
+  @@index([startsAt])
+}
+
+model Report {
+  id             String           @id @default(cuid())
+  type           ReportType
+  status         ReportStatus     @default(PENDING)
+  targetType     ReportTargetType
+  targetId       String
+  reason         String
+  reporterId     String
+  reporter       Profile          @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+  resolvedById   String?
+  resolvedBy     Profile?         @relation("ReportsResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolutionNote String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([status])
+  @@index([targetType, targetId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      Profile  @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+model AdminNotification {
+  id         String               @id @default(cuid())
+  title      String
+  message    String
+  audience   NotificationAudience @default(ALL)
+  sentById   String
+  sentBy     Profile              @relation(fields: [sentById], references: [id], onDelete: Cascade)
+  createdAt  DateTime             @default(now())
+
+  @@index([audience])
+  @@index([createdAt])
+}
+
+model UserSuspension {
+  id             String    @id @default(cuid())
+  profileId      String
+  profile        Profile   @relation("SuspensionsReceived", fields: [profileId], references: [id], onDelete: Cascade)
+  reason         String
+  suspendedById  String
+  suspendedBy    Profile   @relation("SuspensionsIssued", fields: [suspendedById], references: [id], onDelete: Cascade)
+  isActive       Boolean   @default(true)
+  liftedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([profileId])
+  @@index([isActive])
+}
