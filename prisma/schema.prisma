@@ -38,19 +38,21 @@ model Profile {
   isSuspended         Boolean @default(false)
   isVerifiedRecruiter Boolean @default(false)
 
-  companiesFollowed  CompanyFollower[]
-  jobsPosted         Job[]              @relation("JobPostedBy")
-  jobApplications    JobApplication[]
-  communityMembers   CommunityMember[]
-  posts              Post[]
-  comments           Comment[]
-  eventsOrganized    Event[]            @relation("EventOrganizer")
-  reportsFiled       Report[]           @relation("ReportsFiled")
-  reportsResolved    Report[]           @relation("ReportsResolved")
-  suspensionsIssued  UserSuspension[]   @relation("SuspensionsIssued")
-  suspensionsRecieved UserSuspension[]  @relation("SuspensionsReceived")
-  auditLogs          AuditLog[]
-  notificationsSent  AdminNotification[]
+  companiesFollowed   CompanyFollower[]
+  jobsPosted          Job[]               @relation("JobPostedBy")
+  jobApplications     JobApplication[]
+  communityMembers    CommunityMember[]
+  posts               Post[]
+  comments            Comment[]
+  eventsOrganized     Event[]             @relation("EventOrganizer")
+  reportsFiled        Report[]            @relation("ReportsFiled")
+  reportsResolved     Report[]            @relation("ReportsResolved")
+  suspensionsIssued   UserSuspension[]    @relation("SuspensionsIssued")
+  suspensionsRecieved UserSuspension[]    @relation("SuspensionsReceived")
+  auditLogs           AuditLog[]
+  notificationsSent   AdminNotification[]
+  PostVotes           PostVote[]
+  PostBookmarks       PostBookmark[]
 
   @@index([role])
   @@index([username])
@@ -201,19 +203,19 @@ model CompanyFollower {
 }
 
 model Job {
-  id          String    @id @default(cuid())
-  title       String
-  description String
-  location    String
-  type        JobType   @default(FULL_TIME)
-  status      JobStatus @default(PENDING)
-  companyId   String
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  postedById  String?
-  postedBy    Profile?  @relation("JobPostedBy", fields: [postedById], references: [id], onDelete: SetNull)
+  id              String    @id @default(cuid())
+  title           String
+  description     String
+  location        String
+  type            JobType   @default(FULL_TIME)
+  status          JobStatus @default(PENDING)
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  postedById      String?
+  postedBy        Profile?  @relation("JobPostedBy", fields: [postedById], references: [id], onDelete: SetNull)
   rejectionReason String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   applications JobApplication[]
 
@@ -266,21 +268,25 @@ model CommunityMember {
 }
 
 model Post {
-  id          String     @id @default(cuid())
-  communityId String?
-  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  authorId    String
-  author      Profile    @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  content     String
-  isRemoved   Boolean    @default(false)
+  id            String     @id @default(cuid())
+  communityId   String?
+  community     Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        Profile    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content       String
+  isRemoved     Boolean    @default(false)
   removedReason String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
-  comments Comment[]
+  comments  Comment[]
+  votes     PostVote[]
+  bookmarks PostBookmark[]
 
   @@index([communityId])
+  @@index([authorId])
   @@index([isRemoved])
+  @@index([createdAt])
 }
 
 model Comment {
@@ -296,19 +302,47 @@ model Comment {
   @@index([postId])
 }
 
+model PostVote {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  value     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([postId, profileId])
+  @@index([postId])
+  @@index([profileId])
+}
+
+model PostBookmark {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, profileId])
+  @@index([postId])
+  @@index([profileId])
+}
+
 model Event {
-  id          String      @id @default(cuid())
-  title       String
-  description String
-  type        EventType   @default(WEBINAR)
-  status      EventStatus @default(PENDING)
-  organizerId String
-  organizer   Profile     @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
-  startsAt    DateTime
-  endsAt      DateTime?
+  id              String      @id @default(cuid())
+  title           String
+  description     String
+  type            EventType   @default(WEBINAR)
+  status          EventStatus @default(PENDING)
+  organizerId     String
+  organizer       Profile     @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  startsAt        DateTime
+  endsAt          DateTime?
   rejectionReason String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   @@index([status])
   @@index([startsAt])
@@ -348,28 +382,28 @@ model AuditLog {
 }
 
 model AdminNotification {
-  id         String               @id @default(cuid())
-  title      String
-  message    String
-  audience   NotificationAudience @default(ALL)
-  sentById   String
-  sentBy     Profile              @relation(fields: [sentById], references: [id], onDelete: Cascade)
-  createdAt  DateTime             @default(now())
+  id        String               @id @default(cuid())
+  title     String
+  message   String
+  audience  NotificationAudience @default(ALL)
+  sentById  String
+  sentBy    Profile              @relation(fields: [sentById], references: [id], onDelete: Cascade)
+  createdAt DateTime             @default(now())
 
   @@index([audience])
   @@index([createdAt])
 }
 
 model UserSuspension {
-  id             String    @id @default(cuid())
-  profileId      String
-  profile        Profile   @relation("SuspensionsReceived", fields: [profileId], references: [id], onDelete: Cascade)
-  reason         String
-  suspendedById  String
-  suspendedBy    Profile   @relation("SuspensionsIssued", fields: [suspendedById], references: [id], onDelete: Cascade)
-  isActive       Boolean   @default(true)
-  liftedAt       DateTime?
-  createdAt      DateTime  @default(now())
+  id            String    @id @default(cuid())
+  profileId     String
+  profile       Profile   @relation("SuspensionsReceived", fields: [profileId], references: [id], onDelete: Cascade)
+  reason        String
+  suspendedById String
+  suspendedBy   Profile   @relation("SuspensionsIssued", fields: [suspendedById], references: [id], onDelete: Cascade)
+  isActive      Boolean   @default(true)
+  liftedAt      DateTime?
+  createdAt     DateTime  @default(now())
 
   @@index([profileId])
   @@index([isActive])
