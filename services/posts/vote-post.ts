@@ -1,53 +1,116 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { feedStore } from "./get-feed";
-
-interface VoteRecord {
-  [key: string]: number; // key: `${userId}_${postId}` -> value: 1 | -1
-}
-
-const globalForVotes = globalThis as unknown as {
-  nexusVotes: VoteRecord | undefined;
-};
-
-const votesStore: VoteRecord = globalForVotes.nexusVotes ?? {};
-if (!globalForVotes.nexusVotes) {
-  globalForVotes.nexusVotes = votesStore;
-}
+import { prisma } from "@/lib/prisma";
 
 export async function votePost(
   postId: string,
   direction: 1 | -1
-): Promise<{ success: boolean; newScore: number; userVote: number; error?: string }> {
+): Promise<{
+  success: boolean;
+  newScore: number;
+  userVote: -1 | 0 | 1;
+  error?: string;
+}> {
   const { userId } = await auth();
+
   if (!userId) {
-    return { success: false, newScore: 0, userVote: 0, error: "Unauthorized" };
+    return {
+      success: false,
+      newScore: 0,
+      userVote: 0,
+      error: "Unauthorized. Please sign in.",
+    };
   }
 
-  const post = feedStore.find((p) => p.id === postId);
+  const profile = await prisma.profile.findUnique({
+    where: {
+      clerkId: userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!profile) {
+    return {
+      success: false,
+      newScore: 0,
+      userVote: 0,
+      error: "Profile not found.",
+    };
+  }
+
+  const post = await prisma.post.findUnique({
+    where: {
+      id: postId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
   if (!post) {
-    return { success: false, newScore: 0, userVote: 0, error: "Post not found" };
+    return {
+      success: false,
+      newScore: 0,
+      userVote: 0,
+      error: "Post not found.",
+    };
   }
 
-  const voteKey = `${userId}_${postId}`;
-  const previousVote = votesStore[voteKey] ?? 0;
-  let nextVote = direction;
+  const existingVote = await prisma.postVote.findUnique({
+    where: {
+      postId_profileId: {
+        postId,
+        profileId: profile.id,
+      },
+    },
+  });
 
-  // Toggle off if clicking the same vote again
-  if (previousVote === direction) {
-    nextVote = 0;
-    delete votesStore[voteKey];
+  let userVote: -1 | 0 | 1 = direction;
+
+  if (existingVote) {
+    if (existingVote.value === direction) {
+      await prisma.postVote.delete({
+        where: {
+          id: existingVote.id,
+        },
+      });
+
+      userVote = 0;
+    } else {
+      await prisma.postVote.update({
+        where: {
+          id: existingVote.id,
+        },
+        data: {
+          value: direction,
+        },
+      });
+    }
   } else {
-    votesStore[voteKey] = nextVote;
+    await prisma.postVote.create({
+      data: {
+        postId,
+        profileId: profile.id,
+        value: direction,
+      },
+    });
   }
 
-  const voteDiff = nextVote - previousVote;
-  post.upvotesCount = Math.max(0, post.upvotesCount + voteDiff);
+  const aggregate = await prisma.postVote.aggregate({
+    where: {
+      postId,
+    },
+    _sum: {
+      value: true,
+    },
+  });
 
   return {
     success: true,
-    newScore: post.upvotesCount,
-    userVote: nextVote,
+    newScore: aggregate._sum.value ?? 0,
+    userVote,
   };
 }

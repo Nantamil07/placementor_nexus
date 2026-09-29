@@ -1,3 +1,5 @@
+import { prisma } from "@/lib/prisma";
+
 export interface PostAuthor {
   id: string;
   fullName: string;
@@ -13,59 +15,105 @@ export interface PostItem {
   author: PostAuthor;
   upvotesCount: number;
   commentsCount: number;
+  userVote: number;
   createdAt: string;
 }
 
-const globalForFeed = globalThis as unknown as {
-  nexusPosts: PostItem[] | undefined;
-};
+export async function getFeed(
+  page = 1,
+  limit = 10,
+  profileId?: string
+): Promise<{
+  posts: PostItem[];
+  total: number;
+  hasMore: boolean;
+}> {
+  const skip = (page - 1) * limit;
 
-const initialFeed: PostItem[] = [
-  {
-    id: "post_seed_1",
-    content: "🚀 Placements season 2026 has officially kicked off! Make sure your GitHub projects, LeetCode profile, and resume summaries are up to date on Nexus.",
-    authorId: "officer_1",
-    author: {
-      id: "officer_1",
-      fullName: "Dr. Evelyn Reed",
-      username: "placement_cell",
-      avatarUrl: null,
-      role: "PLACEMENT_OFFICER",
-    },
-    upvotesCount: 42,
-    commentsCount: 9,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-  },
-  {
-    id: "post_seed_2",
-    content: "Just finished my interview with Google for the SWE role! Core focus was on distributed caching, system bottlenecks, and graph traversals. Happy to mentor anyone prepping for upcoming campus rounds.",
-    authorId: "alumni_1",
-    author: {
-      id: "alumni_1",
-      fullName: "Kavya Sharma",
-      username: "kavya_swe",
-      avatarUrl: null,
-      role: "ALUMNI",
-    },
-    upvotesCount: 28,
-    commentsCount: 14,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
-  },
-];
+  const [posts, total] = await Promise.all([
+    prisma.post.findMany({
+      where: {
+        isRemoved: false,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        content: true,
+        authorId: true,
+        createdAt: true,
 
-export const feedStore = globalForFeed.nexusPosts ?? initialFeed;
-if (!globalForFeed.nexusPosts) {
-  globalForFeed.nexusPosts = feedStore;
-}
+        author: {
+          select: {
+            id: true,
+            fullName: true,
+            username: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
 
-export async function getFeed(page = 1, limit = 10): Promise<{ posts: PostItem[]; total: number; hasMore: boolean }> {
-  const startIndex = (page - 1) * limit;
-  const endIndex = startIndex + limit;
-  const posts = feedStore.slice(startIndex, endIndex);
+        votes: {
+          select: {
+            value: true,
+            profileId: true,
+          },
+        },
+
+        _count: {
+          select: {
+            comments: true,
+          },
+        },
+      },
+    }),
+
+    prisma.post.count({
+      where: {
+        isRemoved: false,
+      },
+    }),
+  ]);
+
+  const formattedPosts: PostItem[] = posts.map((post) => {
+    const upvotesCount = post.votes.reduce(
+      (total, vote) => total + vote.value,
+      0
+    );
+
+    const userVote =
+      profileId
+        ? post.votes.find(
+            (vote) => vote.profileId === profileId
+          )?.value ?? 0
+        : 0;
+
+    return {
+      id: post.id,
+      content: post.content,
+      authorId: post.authorId,
+
+      author: {
+        id: post.author.id,
+        fullName: post.author.fullName,
+        username: post.author.username,
+        avatarUrl: post.author.avatarUrl,
+        role: post.author.role,
+      },
+
+      upvotesCount,
+      commentsCount: post._count.comments,
+      userVote,
+      createdAt: post.createdAt.toISOString(),
+    };
+  });
 
   return {
-    posts,
-    total: feedStore.length,
-    hasMore: endIndex < feedStore.length,
+    posts: formattedPosts,
+    total,
+    hasMore: skip + formattedPosts.length < total,
   };
 }

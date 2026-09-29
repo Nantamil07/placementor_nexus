@@ -6,65 +6,80 @@ import { votePost } from "@/services/posts/vote-post";
 interface VoteButtonsProps {
   postId: string;
   initialScore: number;
+  initialVote: -1 | 0 | 1;
 }
 
-export function VoteButtons({ postId, initialScore }: VoteButtonsProps) {
+export function VoteButtons({
+  postId,
+  initialScore,
+  initialVote,
+}: VoteButtonsProps) {
   const [score, setScore] = useState(initialScore);
-  const [userVote, setUserVote] = useState<number>(0); // 1 = upvoted, -1 = downvoted, 0 = none
+  const [userVote, setUserVote] = useState<-1 | 0 | 1>(initialVote);
   const [isPending, startTransition] = useTransition();
 
   const handleVote = (direction: 1 | -1) => {
-    const previousScore = score;
-    const previousVote = userVote;
+    if (isPending) return;
 
-    // Optimistic calculation
-    let optimisticVote = direction;
-    if (previousVote === direction) {
+    const previousVote = userVote;
+    const previousScore = score;
+
+    let optimisticVote: -1 | 0 | 1 = direction;
+    let scoreChange = 0;
+
+    if (userVote === direction) {
       optimisticVote = 0;
+      scoreChange = -direction;
+    } else if (userVote === 0) {
+      scoreChange = direction;
+    } else {
+      scoreChange = direction * 2;
     }
-    const diff = optimisticVote - previousVote;
-    setScore(Math.max(0, previousScore + diff));
+
     setUserVote(optimisticVote);
+    setScore((current) => current + scoreChange);
 
     startTransition(async () => {
       const result = await votePost(postId, direction);
+
       if (!result.success) {
-        setScore(previousScore);
         setUserVote(previousVote);
-      } else {
-        setScore(result.newScore);
-        setUserVote(result.userVote);
+        setScore(previousScore);
+        return;
       }
+
+      setUserVote(result.userVote as -1 | 0 | 1);
+      setScore(result.newScore);
     });
   };
 
   return (
-    <div className="flex items-center rounded-lg border bg-muted/40 p-0.5">
+    <div className="flex items-center gap-2">
       <button
+        type="button"
         onClick={() => handleVote(1)}
         disabled={isPending}
-        title="Upvote"
-        className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold transition-colors ${
+        className={`rounded-md px-3 py-1.5 text-sm transition ${
           userVote === 1
-            ? "bg-primary text-primary-foreground shadow-xs"
-            : "text-muted-foreground hover:bg-background hover:text-foreground"
+            ? "bg-orange-100 text-orange-600"
+            : "text-gray-600 hover:bg-gray-100"
         }`}
       >
         ▲
       </button>
 
-      <span className="px-2 text-xs font-semibold text-foreground min-w-[2rem] text-center">
+      <span className="min-w-[2rem] text-center text-sm font-medium">
         {score}
       </span>
 
       <button
+        type="button"
         onClick={() => handleVote(-1)}
         disabled={isPending}
-        title="Downvote"
-        className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold transition-colors ${
+        className={`rounded-md px-3 py-1.5 text-sm transition ${
           userVote === -1
-            ? "bg-destructive text-destructive-foreground shadow-xs"
-            : "text-muted-foreground hover:bg-background hover:text-foreground"
+            ? "bg-blue-100 text-blue-600"
+            : "text-gray-600 hover:bg-gray-100"
         }`}
       >
         ▼

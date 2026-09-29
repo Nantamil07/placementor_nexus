@@ -290,16 +290,20 @@ model Post {
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
-  author    Profile  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    Profile   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
   content   String
-  isRemoved Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isRemoved Boolean   @default(false)
+  createdAt DateTime  @default(now())
 
   @@index([postId])
+  @@index([parentId])
 }
 
 model PostVote {

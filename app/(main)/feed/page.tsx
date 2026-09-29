@@ -18,7 +18,7 @@ export default async function FeedPage() {
     redirect("/setup-profile");
   }
 
-  const { posts, hasMore } = await getFeed(1, 10);
+  const { posts, hasMore } = await getFeed(1, 10, profile.id);
 
   return (
     <div className="min-h-screen bg-muted/20 pb-16">
