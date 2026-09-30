@@ -69,9 +69,7 @@ export default function UserRow({ user }: { user: AdminUserRow }) {
           </span>
         </td>
         <td className="whitespace-nowrap px-4 py-3 text-xs text-zinc-500">
-          {new Date(user.createdAt).toLocaleDateString("en-US", {
-  timeZone: "UTC",
-})}
+          {new Date(user.createdAt).toLocaleDateString()}
         </td>
         <td className="whitespace-nowrap px-4 py-3">
           <div className="flex items-center gap-1.5">

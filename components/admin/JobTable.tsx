@@ -65,9 +65,7 @@ export default function JobTable({ jobs }: { jobs: AdminJobRow[] }) {
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[job.status]}`}>{job.status}</span>
                 </td>
-                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(job.createdAt).toLocaleDateString("en-US", {
-  timeZone: "UTC",
-})}</td>
+                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(job.createdAt).toLocaleDateString()}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1.5">
                     {job.status === "PENDING" && (

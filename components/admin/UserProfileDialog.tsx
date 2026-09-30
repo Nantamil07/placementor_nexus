@@ -51,9 +51,7 @@ export default function UserProfileDialog({ user, onClose }: UserProfileDialogPr
           </div>
           <div className="flex justify-between">
             <dt className="text-zinc-500">Joined</dt>
-            <dd className="text-zinc-200">{new Date(user.createdAt).toLocaleDateString("en-US", {
-  timeZone: "UTC",
-})}</dd>
+            <dd className="text-zinc-200">{new Date(user.createdAt).toLocaleDateString()}</dd>
           </div>
         </dl>
 

@@ -56,9 +56,7 @@ export default function RecruiterTable({ recruiters }: { recruiters: AdminRecrui
                     <span className="text-xs text-zinc-500">{r.email}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(r.createdAt).toLocaleDateString("en-US", {
-  timeZone: "UTC",
-})}</td>
+                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(r.createdAt).toLocaleDateString()}</td>
                 <td className="px-4 py-3">
                   <span
                     className={

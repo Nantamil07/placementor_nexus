@@ -2,45 +2,50 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import {
+  connectionRequestsStore,
+  defaultSuggestions,
+  ConnectionRequestItem,
+  ConnectionStatus,
+} from "./get-connections";
 
-export type ConnectionStatus = "NONE" | "PENDING" | "ACCEPTED" | "REJECTED";
-
-export async function sendConnectionRequest(targetUserId: string): Promise<{ success: boolean; status: ConnectionStatus; error?: string }> {
+export async function sendConnectionRequest(
+  targetUserId: string
+): Promise<{ success: boolean; status: ConnectionStatus; error?: string }> {
   const { userId } = await auth();
-  if (!userId) return { success: false, status: "NONE", error: "Unauthorized" };
+  if (!userId) {
+    return { success: false, status: "NONE", error: "Unauthorized" };
+  }
 
-  const sender = await prisma.profile.findUnique({ where: { clerkId: userId }, select: { id: true } });
-  if (!sender) return { success: false, status: "NONE", error: "Profile not found" };
-  if (sender.id === targetUserId) return { success: false, status: "NONE", error: "You cannot connect with yourself" };
+  const existing = connectionRequestsStore.find(
+    (req) => req.receiverId === targetUserId && req.senderId === userId
+  );
 
-  const target = await prisma.profile.findUnique({ where: { id: targetUserId }, select: { id: true, isSuspended: true } });
-  if (!target || target.isSuspended) return { success: false, status: "NONE", error: "User not found" };
+  if (existing) {
+    return { success: true, status: existing.status };
+  }
 
-  const existing = await prisma.connection.findFirst({
-    where: {
-      OR: [
-        { senderId: sender.id, receiverId: targetUserId },
-        { senderId: targetUserId, receiverId: sender.id },
-      ],
+  const target = defaultSuggestions.find((s) => s.id === targetUserId);
+
+  const newRequest: ConnectionRequestItem = {
+    id: `req_${Date.now()}`,
+    senderId: userId,
+    receiverId: targetUserId,
+    status: "PENDING",
+    createdAt: new Date().toISOString(),
+    sender: {
+      id: userId,
+      fullName: "You",
+      username: "you",
+      avatarUrl: null,
+      headline: "Campus Member",
+      role: "STUDENT",
+      mutualCount: target?.mutualCount ?? 0,
     },
-  });
-  if (existing) return { success: true, status: existing.status };
+  };
 
-  await prisma.$transaction([
-    prisma.connection.create({ data: { senderId: sender.id, receiverId: targetUserId, status: "PENDING" } }),
-    prisma.notification.create({
-      data: {
-        recipientId: targetUserId,
-        actorId: sender.id,
-        type: "CONNECTION_REQUEST",
-        title: "New connection request",
-        message: "You received a new connection request.",
-        link: "/network",
-      },
-    }),
-  ]);
-
+  connectionRequestsStore.push(newRequest);
   revalidatePath("/network");
+
   return { success: true, status: "PENDING" };
 }

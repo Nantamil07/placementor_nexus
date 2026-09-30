@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export interface PostAuthor {
   id: string;
@@ -8,34 +9,91 @@ export interface PostAuthor {
   role: string;
 }
 
+export interface PostCommunity {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface PostItem {
   id: string;
   content: string;
   authorId: string;
   author: PostAuthor;
+  community?: PostCommunity | null;
   upvotesCount: number;
   commentsCount: number;
-  userVote: -1 | 0 | 1;
+  userVote: number;
   isBookmarked: boolean;
   createdAt: string;
 }
 
-export async function getFeed(page = 1, limit = 10, profileId?: string) {
-  const safePage = Math.max(1, page);
-  const safeLimit = Math.min(Math.max(1, limit), 50);
-  const skip = (safePage - 1) * safeLimit;
+export interface GetFeedOptions {
+  page?: number;
+  limit?: number;
+  profileId?: string;
+  communitySlug?: string;
+  sort?: "latest" | "top";
+  savedOnly?: boolean;
+}
+
+export async function getFeed(
+  pageOrOptions: number | GetFeedOptions = 1,
+  limitParam = 10,
+  profileIdParam?: string
+): Promise<{
+  posts: PostItem[];
+  total: number;
+  hasMore: boolean;
+}> {
+  let page = 1;
+  let limit = 10;
+  let profileId: string | undefined;
+  let communitySlug: string | undefined;
+  let sort: "latest" | "top" = "latest";
+  let savedOnly = false;
+
+  if (typeof pageOrOptions === "object") {
+    page = pageOrOptions.page ?? 1;
+    limit = pageOrOptions.limit ?? 10;
+    profileId = pageOrOptions.profileId;
+    communitySlug = pageOrOptions.communitySlug;
+    sort = pageOrOptions.sort ?? "latest";
+    savedOnly = Boolean(pageOrOptions.savedOnly);
+  } else {
+    page = pageOrOptions;
+    limit = limitParam;
+    profileId = profileIdParam;
+  }
+
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.PostWhereInput = {
+    isRemoved: false,
+    ...(communitySlug ? { community: { slug: communitySlug } } : {}),
+    ...(savedOnly && profileId ? { bookmarks: { some: { profileId } } } : {}),
+  };
 
   const [posts, total] = await Promise.all([
     prisma.post.findMany({
-      where: { isRemoved: false },
-      orderBy: { createdAt: "desc" },
+      where,
+      orderBy: {
+        createdAt: "desc",
+      },
       skip,
-      take: safeLimit,
+      take: limit,
       select: {
         id: true,
         content: true,
         authorId: true,
         createdAt: true,
+        community: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
         author: {
           select: {
             id: true,
@@ -52,23 +110,32 @@ export async function getFeed(page = 1, limit = 10, profileId?: string) {
           },
         },
         bookmarks: profileId
-          ? { where: { profileId }, select: { profileId: true } }
-          : { select: { profileId: true }, take: 0 },
+          ? {
+              where: { profileId },
+              select: { id: true },
+            }
+          : false,
         _count: {
           select: {
-            comments: { where: { isRemoved: false } },
+            comments: true,
           },
         },
       },
     }),
-    prisma.post.count({ where: { isRemoved: false } }),
+    prisma.post.count({ where }),
   ]);
 
-  const formattedPosts: PostItem[] = posts.map((post) => {
-    const score = post.votes.reduce((sum, vote) => sum + vote.value, 0);
-    const currentVote = profileId
+  let formattedPosts: PostItem[] = posts.map((post) => {
+    const upvotesCount = post.votes.reduce(
+      (totalVotes, vote) => totalVotes + vote.value,
+      0
+    );
+
+    const userVote = profileId
       ? post.votes.find((vote) => vote.profileId === profileId)?.value ?? 0
       : 0;
+
+    const isBookmarked = Array.isArray(post.bookmarks) && post.bookmarks.length > 0;
 
     return {
       id: post.id,
@@ -81,13 +148,18 @@ export async function getFeed(page = 1, limit = 10, profileId?: string) {
         avatarUrl: post.author.avatarUrl,
         role: post.author.role,
       },
-      upvotesCount: score,
+      community: post.community,
+      upvotesCount,
       commentsCount: post._count.comments,
-      userVote: currentVote as -1 | 0 | 1,
-      isBookmarked: post.bookmarks.length > 0,
+      userVote,
+      isBookmarked,
       createdAt: post.createdAt.toISOString(),
     };
   });
+
+  if (sort === "top") {
+    formattedPosts.sort((a, b) => b.upvotesCount - a.upvotesCount);
+  }
 
   return {
     posts: formattedPosts,

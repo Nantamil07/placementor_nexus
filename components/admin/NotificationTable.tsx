@@ -32,9 +32,7 @@ export default function NotificationTable({ notifications }: { notifications: Ad
                 </td>
                 <td className="px-4 py-3 text-xs text-zinc-400">{n.audience.replace("_", " ")}</td>
                 <td className="px-4 py-3 text-xs text-zinc-400">{n.sentByName}</td>
-                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(n.createdAt).toLocaleString("en-US", {
-  timeZone: "UTC",
-})}</td>
+                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(n.createdAt).toLocaleString()}</td>
               </tr>
             ))}
             {notifications.length === 0 && (
