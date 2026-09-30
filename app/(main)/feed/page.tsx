@@ -58,8 +58,12 @@ export default async function FeedPage() {
 
             <div className="space-y-4">
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
-              ))}
+  <PostCard
+    key={post.id}
+    post={post}
+    currentProfileId={profile.id}
+  />
+))}
             </div>
 
             {hasMore && (
