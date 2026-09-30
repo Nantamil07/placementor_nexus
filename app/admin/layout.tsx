@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/admin-permissions";
 import { AdminSidebarProvider } from "@/components/admin/AdminSidebar";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
-import { AdminContext } from "@/hooks/use-admin";
+import { AdminContextProvider } from "@/hooks/use-admin";
 
 export const metadata: Metadata = {
   title: "Admin · Placementor Nexus",
@@ -15,24 +15,26 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const profile = await requireAdmin();
 
   return (
-    <AdminContext.Provider
-      value={{
-        id: profile.id,
-        fullName: profile.fullName,
-        email: profile.email,
-        avatarUrl: profile.avatarUrl,
-        role: profile.role as "ADMIN" | "PLACEMENT_OFFICER",
-      }}
-    >
-      <AdminSidebarProvider>
-        <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
-          <AdminSidebar />
-          <div className="flex min-h-screen flex-1 flex-col">
-            <AdminTopbar />
-            <main className="flex-1 overflow-x-hidden p-4 md:p-6">{children}</main>
-          </div>
-        </div>
-      </AdminSidebarProvider>
-    </AdminContext.Provider>
+    <AdminContextProvider
+  value={{
+    id: profile.id,
+    fullName: profile.fullName,
+    email: profile.email,
+    avatarUrl: profile.avatarUrl,
+    role: profile.role as "ADMIN" | "PLACEMENT_OFFICER",
+  }}
+>
+  <AdminSidebarProvider>
+    <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
+      <AdminSidebar />
+      <div className="flex min-h-screen flex-1 flex-col">
+        <AdminTopbar />
+        <main className="flex-1 overflow-x-hidden p-4 md:p-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  </AdminSidebarProvider>
+</AdminContextProvider>
   );
 }

@@ -6,80 +6,65 @@ import { votePost } from "@/services/posts/vote-post";
 interface VoteButtonsProps {
   postId: string;
   initialScore: number;
-  initialVote: -1 | 0 | 1;
+  initialVote?: -1 | 0 | 1;
 }
 
-export function VoteButtons({
-  postId,
-  initialScore,
-  initialVote,
-}: VoteButtonsProps) {
+export function VoteButtons({ postId, initialScore, initialVote = 0 }: VoteButtonsProps) {
   const [score, setScore] = useState(initialScore);
   const [userVote, setUserVote] = useState<-1 | 0 | 1>(initialVote);
   const [isPending, startTransition] = useTransition();
 
   const handleVote = (direction: 1 | -1) => {
-    if (isPending) return;
-
-    const previousVote = userVote;
     const previousScore = score;
+    const previousVote = userVote;
+    const nextVote: -1 | 0 | 1 = previousVote === direction ? 0 : direction;
 
-    let optimisticVote: -1 | 0 | 1 = direction;
-    let scoreChange = 0;
-
-    if (userVote === direction) {
-      optimisticVote = 0;
-      scoreChange = -direction;
-    } else if (userVote === 0) {
-      scoreChange = direction;
-    } else {
-      scoreChange = direction * 2;
-    }
-
-    setUserVote(optimisticVote);
-    setScore((current) => current + scoreChange);
+    setScore(previousScore + nextVote - previousVote);
+    setUserVote(nextVote);
 
     startTransition(async () => {
       const result = await votePost(postId, direction);
-
       if (!result.success) {
-        setUserVote(previousVote);
         setScore(previousScore);
+        setUserVote(previousVote);
         return;
       }
-
-      setUserVote(result.userVote as -1 | 0 | 1);
       setScore(result.newScore);
+      setUserVote(result.userVote);
     });
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center rounded-lg border bg-muted/40 p-0.5" aria-label="Post voting">
       <button
         type="button"
         onClick={() => handleVote(1)}
         disabled={isPending}
-        className={`rounded-md px-3 py-1.5 text-sm transition ${
+        title="Upvote"
+        aria-label="Upvote post"
+        aria-pressed={userVote === 1}
+        className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold transition-colors ${
           userVote === 1
-            ? "bg-orange-100 text-orange-600"
-            : "text-gray-600 hover:bg-gray-100"
+            ? "bg-primary text-primary-foreground shadow-xs"
+            : "text-muted-foreground hover:bg-background hover:text-foreground"
         }`}
       >
         ▲
       </button>
-
-      <span className="min-w-[2rem] text-center text-sm font-medium">
+      <span className="min-w-[2.5rem] px-2 text-center text-xs font-semibold text-foreground">
         {score}
       </span>
-
       <button
         type="button"
         onClick={() => handleVote(-1)}
         disabled={isPending}
-        className={`rounded-md px-3 py-1.5 text-sm transition ${
+        title="Downvote"
+        aria-label="Downvote post"
+        aria-pressed={userVote === -1}
+        className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold transition-colors ${
           userVote === -1
-            ? "bg-blue-100 text-blue-600"
-            : "text-gray-600 hover:bg-gray-100"
+            ? "bg-destructive text-destructive-foreground shadow-xs"
+            : "text-muted-foreground hover:bg-background hover:text-foreground"
         }`}
       >
         ▼

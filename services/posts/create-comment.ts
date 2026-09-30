@@ -20,94 +20,53 @@ export interface CommentItem {
   replies?: CommentItem[];
 }
 
+const authorSelect = {
+  id: true,
+  fullName: true,
+  username: true,
+  avatarUrl: true,
+  role: true,
+} as const;
+
 export async function createComment(
   postId: string,
   content: string,
   parentId?: string | null
-): Promise<{
-  success: boolean;
-  comment?: CommentItem;
-  error?: string;
-}> {
+): Promise<{ success: boolean; comment?: CommentItem; error?: string }> {
   const { userId } = await auth();
-
-  if (!userId) {
-    return {
-      success: false,
-      error: "Unauthorized. Please sign in.",
-    };
-  }
+  if (!userId) return { success: false, error: "Unauthorized. Please sign in." };
 
   const trimmed = content.trim();
-
-  if (!trimmed) {
-    return {
-      success: false,
-      error: "Comment cannot be empty.",
-    };
-  }
+  if (!trimmed) return { success: false, error: "Comment cannot be empty." };
+  if (trimmed.length > 2000) return { success: false, error: "Comment is too long." };
 
   const profile = await prisma.profile.findUnique({
-    where: {
-      clerkId: userId,
-    },
-    select: {
-      id: true,
-      fullName: true,
-      username: true,
-      avatarUrl: true,
-      role: true,
-    },
+    where: { clerkId: userId },
+    select: authorSelect,
   });
-
-  if (!profile) {
-    return {
-      success: false,
-      error: "Profile not found.",
-    };
-  }
+  if (!profile) return { success: false, error: "Profile not found." };
 
   const post = await prisma.post.findUnique({
-    where: {
-      id: postId,
-    },
-    select: {
-      id: true,
-    },
+    where: { id: postId },
+    select: { id: true, isRemoved: true },
   });
-
-  if (!post) {
-    return {
-      success: false,
-      error: "Post not found.",
-    };
-  }
+  if (!post || post.isRemoved) return { success: false, error: "Post not found." };
 
   if (parentId) {
-    const parentComment = await prisma.comment.findFirst({
-      where: {
-        id: parentId,
-        postId,
-        isRemoved: false,
-      },
-      select: {
-        id: true,
-      },
+    const parent = await prisma.comment.findUnique({
+      where: { id: parentId },
+      select: { id: true, postId: true, isRemoved: true },
     });
-
-    if (!parentComment) {
-      return {
-        success: false,
-        error: "Parent comment not found.",
-      };
+    if (!parent || parent.postId !== postId || parent.isRemoved) {
+      return { success: false, error: "Parent comment not found." };
     }
   }
 
   const comment = await prisma.comment.create({
     data: {
       postId,
-      authorId: profile.id,
       parentId: parentId ?? null,
+      authorId: profile.id,
       content: trimmed,
     },
     select: {
@@ -116,15 +75,7 @@ export async function createComment(
       parentId: true,
       content: true,
       createdAt: true,
-      author: {
-        select: {
-          id: true,
-          fullName: true,
-          username: true,
-          avatarUrl: true,
-          role: true,
-        },
-      },
+      author: { select: authorSelect },
     },
   });
 
@@ -137,74 +88,45 @@ export async function createComment(
       postId: comment.postId,
       parentId: comment.parentId,
       content: comment.content,
-      author: {
-        id: comment.author.id,
-        fullName: comment.author.fullName,
-        username: comment.author.username,
-        avatarUrl: comment.author.avatarUrl,
-        role: comment.author.role,
-      },
+      author: comment.author,
       createdAt: comment.createdAt.toISOString(),
       replies: [],
     },
   };
 }
 
-export async function getCommentsForPost(
-  postId: string
-): Promise<CommentItem[]> {
+export async function getCommentsForPost(postId: string): Promise<CommentItem[]> {
   const comments = await prisma.comment.findMany({
-    where: {
-      postId,
-      isRemoved: false,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
+    where: { postId, isRemoved: false },
+    orderBy: { createdAt: "asc" },
     select: {
       id: true,
       postId: true,
       parentId: true,
       content: true,
       createdAt: true,
-      author: {
-        select: {
-          id: true,
-          fullName: true,
-          username: true,
-          avatarUrl: true,
-          role: true,
-        },
-      },
+      author: { select: authorSelect },
     },
   });
 
-  const commentMap = new Map<string, CommentItem>();
-  const topLevel: CommentItem[] = [];
-
+  const map = new Map<string, CommentItem>();
   for (const comment of comments) {
-    commentMap.set(comment.id, {
+    map.set(comment.id, {
       id: comment.id,
       postId: comment.postId,
       parentId: comment.parentId,
       content: comment.content,
-      author: {
-        id: comment.author.id,
-        fullName: comment.author.fullName,
-        username: comment.author.username,
-        avatarUrl: comment.author.avatarUrl,
-        role: comment.author.role,
-      },
+      author: comment.author,
       createdAt: comment.createdAt.toISOString(),
       replies: [],
     });
   }
 
+  const topLevel: CommentItem[] = [];
   for (const comment of comments) {
-    const item = commentMap.get(comment.id)!;
-
-    if (comment.parentId && commentMap.has(comment.parentId)) {
-      commentMap.get(comment.parentId)!.replies!.push(item);
+    const item = map.get(comment.id)!;
+    if (comment.parentId && map.has(comment.parentId)) {
+      map.get(comment.parentId)!.replies!.push(item);
     } else {
       topLevel.push(item);
     }

@@ -69,6 +69,7 @@ export async function createPost(input: CreatePostInput): Promise<{
     data: {
       content: parsed.data.content,
       authorId: profile.id,
+      communityId: parsed.data.communityId || null,
     },
     select: {
       id: true,

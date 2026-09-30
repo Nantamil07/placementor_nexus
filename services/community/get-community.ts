@@ -1,91 +1,99 @@
 import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
 
-export interface Community {
+export interface CommunitySummary {
   id: string;
   slug: string;
   name: string;
-  description: string;
-  bannerUrl?: string | null;
-  avatarUrl?: string | null;
+  description: string | null;
+  isPrivate: boolean;
   memberCount: number;
-  category: string;
   createdAt: string;
 }
 
-const globalForCommunities = globalThis as unknown as {
-  nexusCommunities: Community[] | undefined;
-  nexusCommunityMembers: Set<string> | undefined; // `${userId}_${communityId}`
-};
-
-export const initialCommunities: Community[] = [
-  {
-    id: "comm_1",
-    slug: "interview-prep",
-    name: "Tech Interview Prep",
-    description: "DSA patterns, mock interview pairs, LeetCode discussion, and system design drills.",
-    bannerUrl: null,
-    avatarUrl: null,
-    memberCount: 342,
-    category: "Preparation",
-    createdAt: new Date("2026-01-01").toISOString(),
-  },
-  {
-    id: "comm_2",
-    slug: "system-design",
-    name: "System Design Hub",
-    description: "High-level architecture, scalability trade-offs, microservices, and database indexing.",
-    bannerUrl: null,
-    avatarUrl: null,
-    memberCount: 215,
-    category: "Architecture",
-    createdAt: new Date("2026-01-05").toISOString(),
-  },
-  {
-    id: "comm_3",
-    slug: "resume-roast",
-    name: "Resume & Portfolio Clinic",
-    description: "Get constructive, brutal feedback on your resume from seniors, mentors, and recruiters.",
-    bannerUrl: null,
-    avatarUrl: null,
-    memberCount: 189,
-    category: "Career",
-    createdAt: new Date("2026-01-10").toISOString(),
-  },
-  {
-    id: "comm_4",
-    slug: "off-campus",
-    name: "Off-Campus Opportunities",
-    description: "Verified referral postings, startup openings, and early-career remote roles.",
-    bannerUrl: null,
-    avatarUrl: null,
-    memberCount: 410,
-    category: "Jobs",
-    createdAt: new Date("2026-01-12").toISOString(),
-  },
-];
-
-export const communitiesStore = globalForCommunities.nexusCommunities ?? initialCommunities;
-export const communityMembersStore = globalForCommunities.nexusCommunityMembers ?? new Set<string>();
-
-if (!globalForCommunities.nexusCommunities) globalForCommunities.nexusCommunities = communitiesStore;
-if (!globalForCommunities.nexusCommunityMembers) globalForCommunities.nexusCommunityMembers = communityMembersStore;
-
-export async function getCommunities(): Promise<(Community & { isMember: boolean })[]> {
-  const { userId } = await auth();
-
-  return communitiesStore.map((comm) => ({
-    ...comm,
-    isMember: userId ? communityMembersStore.has(`${userId}_${comm.id}`) : false,
-  }));
+export interface CommunityDetails extends CommunitySummary {
+  isMember: boolean;
+  memberRole: string | null;
 }
 
-export async function getCommunityBySlug(slug: string): Promise<(Community & { isMember: boolean }) | null> {
+export async function getCommunities(): Promise<CommunityDetails[]> {
   const { userId } = await auth();
-  const comm = communitiesStore.find((c) => c.slug === slug);
-  if (!comm) return null;
+
+  const profile = userId
+    ? await prisma.profile.findUnique({
+        where: { clerkId: userId },
+        select: { id: true },
+      })
+    : null;
+
+  const communities = await prisma.community.findMany({
+    where: { isRemoved: false },
+    orderBy: { createdAt: "desc" },
+    include: {
+      _count: { select: { members: true } },
+      members: profile
+        ? {
+            where: { profileId: profile.id },
+            select: { role: true, isBanned: true },
+          }
+        : false,
+    },
+  });
+
+  return communities.map((community) => {
+    const membership = profile ? community.members[0] : undefined;
+    return {
+      id: community.id,
+      slug: community.slug,
+      name: community.name,
+      description: community.description,
+      isPrivate: community.isPrivate,
+      memberCount: community._count.members,
+      createdAt: community.createdAt.toISOString(),
+      isMember: Boolean(membership && !membership.isBanned),
+      memberRole: membership && !membership.isBanned ? membership.role : null,
+    };
+  });
+}
+
+export async function getCommunityBySlug(
+  slug: string
+): Promise<CommunityDetails | null> {
+  const { userId } = await auth();
+
+  const profile = userId
+    ? await prisma.profile.findUnique({
+        where: { clerkId: userId },
+        select: { id: true },
+      })
+    : null;
+
+  const community = await prisma.community.findFirst({
+    where: { slug: slug.toLowerCase(), isRemoved: false },
+    include: {
+      _count: { select: { members: true } },
+      members: profile
+        ? {
+            where: { profileId: profile.id },
+            select: { role: true, isBanned: true },
+          }
+        : false,
+    },
+  });
+
+  if (!community) return null;
+
+  const membership = profile ? community.members[0] : undefined;
 
   return {
-    ...comm,
-    isMember: userId ? communityMembersStore.has(`${userId}_${comm.id}`) : false,
+    id: community.id,
+    slug: community.slug,
+    name: community.name,
+    description: community.description,
+    isPrivate: community.isPrivate,
+    memberCount: community._count.members,
+    createdAt: community.createdAt.toISOString(),
+    isMember: Boolean(membership && !membership.isBanned),
+    memberRole: membership && !membership.isBanned ? membership.role : null,
   };
 }

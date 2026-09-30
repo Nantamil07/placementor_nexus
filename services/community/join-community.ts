@@ -1,8 +1,8 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { communitiesStore, communityMembersStore } from "./get-community";
 
 export async function toggleCommunityMembership(communityId: string): Promise<{
   success: boolean;
@@ -12,31 +12,59 @@ export async function toggleCommunityMembership(communityId: string): Promise<{
 }> {
   const { userId } = await auth();
   if (!userId) {
-    return { success: false, isMember: false, memberCount: 0, error: "Unauthorized" };
+    return { success: false, isMember: false, memberCount: 0, error: "Unauthorized. Please sign in." };
   }
 
-  const community = communitiesStore.find((c) => c.id === communityId);
-  if (!community) {
-    return { success: false, isMember: false, memberCount: 0, error: "Community not found" };
+  const profile = await prisma.profile.findUnique({
+    where: { clerkId: userId },
+    select: { id: true },
+  });
+
+  if (!profile) {
+    return { success: false, isMember: false, memberCount: 0, error: "Profile not found." };
   }
 
-  const membershipKey = `${userId}_${communityId}`;
-  const alreadyMember = communityMembersStore.has(membershipKey);
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { id: true, slug: true, isRemoved: true, isPrivate: true },
+  });
 
-  if (alreadyMember) {
-    communityMembersStore.delete(membershipKey);
-    community.memberCount = Math.max(0, community.memberCount - 1);
+  if (!community || community.isRemoved) {
+    return { success: false, isMember: false, memberCount: 0, error: "Community not found." };
+  }
+
+  const existing = await prisma.communityMember.findUnique({
+    where: { communityId_profileId: { communityId, profileId: profile.id } },
+    select: { id: true, isBanned: true },
+  });
+
+  if (existing?.isBanned) {
+    const count = await prisma.communityMember.count({ where: { communityId, isBanned: false } });
+    return { success: false, isMember: false, memberCount: count, error: "You are banned from this community." };
+  }
+
+  if (existing) {
+    await prisma.communityMember.delete({ where: { id: existing.id } });
   } else {
-    communityMembersStore.add(membershipKey);
-    community.memberCount += 1;
+    if (community.isPrivate) {
+      const count = await prisma.communityMember.count({ where: { communityId, isBanned: false } });
+      return { success: false, isMember: false, memberCount: count, error: "This private community requires an invitation or approval." };
+    }
+    await prisma.communityMember.create({
+      data: { communityId, profileId: profile.id, role: "MEMBER" },
+    });
   }
+
+  const memberCount = await prisma.communityMember.count({
+    where: { communityId, isBanned: false },
+  });
 
   revalidatePath("/communities");
   revalidatePath(`/communities/${community.slug}`);
 
   return {
     success: true,
-    isMember: !alreadyMember,
-    memberCount: community.memberCount,
+    isMember: !existing,
+    memberCount,
   };
 }

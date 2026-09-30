@@ -10,6 +10,7 @@ import { updatePost } from "@/services/posts/update-post";
 import { deletePost } from "@/services/posts/delete-post";
 import { VoteButtons } from "./VoteButtons";
 import { CommentSection } from "./CommentSection";
+import { BookmarkButton } from "./BookmarkButton";
 
 interface PostCardProps {
   post: PostItem;
@@ -337,14 +338,21 @@ export function PostCard({
           </span>
         </button>
 
+        {/* Bookmark */}
+        <BookmarkButton
+          postId={post.id}
+          initialBookmarked={post.isBookmarked}
+        />
+
         {/* Share */}
         <button
           type="button"
-          onClick={() => {
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText(
-                window.location.href
-              );
+          onClick={async () => {
+            const url = window.location.href;
+            if (navigator.share) {
+              await navigator.share({ title: "Placementor Nexus post", url }).catch(() => {});
+            } else if (navigator.clipboard) {
+              await navigator.clipboard.writeText(url);
             }
           }}
           className="ml-auto rounded-md px-2.5 py-1 transition-colors hover:bg-muted hover:text-foreground"

@@ -6,6 +6,7 @@ export const createPostSchema = z.object({
     .trim()
     .min(1, "Post content cannot be empty")
     .max(2000, "Post cannot exceed 2000 characters"),
+  communityId: z.string().optional(),
 });
 
 export const updatePostSchema = z.object({

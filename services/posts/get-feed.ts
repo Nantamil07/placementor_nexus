@@ -15,37 +15,27 @@ export interface PostItem {
   author: PostAuthor;
   upvotesCount: number;
   commentsCount: number;
-  userVote: number;
+  userVote: -1 | 0 | 1;
+  isBookmarked: boolean;
   createdAt: string;
 }
 
-export async function getFeed(
-  page = 1,
-  limit = 10,
-  profileId?: string
-): Promise<{
-  posts: PostItem[];
-  total: number;
-  hasMore: boolean;
-}> {
-  const skip = (page - 1) * limit;
+export async function getFeed(page = 1, limit = 10, profileId?: string) {
+  const safePage = Math.max(1, page);
+  const safeLimit = Math.min(Math.max(1, limit), 50);
+  const skip = (safePage - 1) * safeLimit;
 
   const [posts, total] = await Promise.all([
     prisma.post.findMany({
-      where: {
-        isRemoved: false,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      where: { isRemoved: false },
+      orderBy: { createdAt: "desc" },
       skip,
-      take: limit,
+      take: safeLimit,
       select: {
         id: true,
         content: true,
         authorId: true,
         createdAt: true,
-
         author: {
           select: {
             id: true,
@@ -55,47 +45,35 @@ export async function getFeed(
             role: true,
           },
         },
-
         votes: {
           select: {
             value: true,
             profileId: true,
           },
         },
-
+        bookmarks: profileId
+          ? { where: { profileId }, select: { profileId: true } }
+          : { select: { profileId: true }, take: 0 },
         _count: {
           select: {
-            comments: true,
+            comments: { where: { isRemoved: false } },
           },
         },
       },
     }),
-
-    prisma.post.count({
-      where: {
-        isRemoved: false,
-      },
-    }),
+    prisma.post.count({ where: { isRemoved: false } }),
   ]);
 
   const formattedPosts: PostItem[] = posts.map((post) => {
-    const upvotesCount = post.votes.reduce(
-      (total, vote) => total + vote.value,
-      0
-    );
-
-    const userVote =
-      profileId
-        ? post.votes.find(
-            (vote) => vote.profileId === profileId
-          )?.value ?? 0
-        : 0;
+    const score = post.votes.reduce((sum, vote) => sum + vote.value, 0);
+    const currentVote = profileId
+      ? post.votes.find((vote) => vote.profileId === profileId)?.value ?? 0
+      : 0;
 
     return {
       id: post.id,
       content: post.content,
       authorId: post.authorId,
-
       author: {
         id: post.author.id,
         fullName: post.author.fullName,
@@ -103,10 +81,10 @@ export async function getFeed(
         avatarUrl: post.author.avatarUrl,
         role: post.author.role,
       },
-
-      upvotesCount,
+      upvotesCount: score,
       commentsCount: post._count.comments,
-      userVote,
+      userVote: currentVote as -1 | 0 | 1,
+      isBookmarked: post.bookmarks.length > 0,
       createdAt: post.createdAt.toISOString(),
     };
   });

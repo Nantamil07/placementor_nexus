@@ -12,13 +12,23 @@ export interface AdminContextValue {
 
 export const AdminContext = createContext<AdminContextValue | null>(null);
 
-/**
- * Client-side access to the current admin's identity + derived permission
- * flags. The value is seeded server-side in app/admin/layout.tsx via
- * <AdminContext.Provider>, so this never triggers an extra network request.
- */
+export function AdminContextProvider({
+  value,
+  children,
+}: {
+  value: AdminContextValue;
+  children: React.ReactNode;
+}) {
+  return (
+    <AdminContext.Provider value={value}>
+      {children}
+    </AdminContext.Provider>
+  );
+}
+
 export function useAdmin() {
   const ctx = useContext(AdminContext);
+
   if (!ctx) {
     throw new Error("useAdmin() must be used within the /admin layout");
   }

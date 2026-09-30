@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import {
-  createComment,
-  CommentItem,
-} from "@/services/posts/create-comment";
+import { createComment, CommentItem } from "@/services/posts/create-comment";
 import { CommentCard } from "./CommentCard";
 
 interface CommentSectionProps {
@@ -14,257 +11,98 @@ interface CommentSectionProps {
   onCommentAdded?: (newCount: number) => void;
 }
 
+function removeComment(items: CommentItem[], commentId: string): CommentItem[] {
+  return items
+    .filter((item) => item.id !== commentId)
+    .map((item) => ({
+      ...item,
+      replies: item.replies ? removeComment(item.replies, commentId) : [],
+    }));
+}
+
+function appendReply(items: CommentItem[], parentId: string, reply: CommentItem): CommentItem[] {
+  return items.map((item) => {
+    if (item.id === parentId) {
+      return { ...item, replies: [...(item.replies ?? []), reply] };
+    }
+    return item.replies?.length
+      ? { ...item, replies: appendReply(item.replies, parentId, reply) }
+      : item;
+  });
+}
+
 export function CommentSection({
   postId,
   initialComments = [],
   currentProfileId,
   onCommentAdded,
 }: CommentSectionProps) {
-  const [comments, setComments] =
-    useState<CommentItem[]>(initialComments);
-
+  const [comments, setComments] = useState<CommentItem[]>(initialComments);
   const [inputContent, setInputContent] = useState("");
-
   const [isPending, startTransition] = useTransition();
 
-  // --------------------------------------------------
-  // Create Top-Level Comment
-  // --------------------------------------------------
-
-  const handleCreateComment = (
-    event: React.FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
-
-    const trimmedContent = inputContent.trim();
-
-    if (!trimmedContent || isPending) {
-      return;
-    }
+  const handleCreateComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputContent.trim()) return;
 
     startTransition(async () => {
-      const result = await createComment(
-        postId,
-        trimmedContent
-      );
-
-      if (!result.success || !result.comment) {
-        return;
-      }
-
-      setComments((previousComments) => {
-        const updatedComments = [
-          ...previousComments,
-          result.comment!,
-        ];
-
-        if (onCommentAdded) {
-          onCommentAdded(countComments(updatedComments));
-        }
-
-        return updatedComments;
-      });
-
+      const result = await createComment(postId, inputContent);
+      if (!result.success || !result.comment) return;
+      setComments((prev) => [...prev, result.comment!]);
       setInputContent("");
+      onCommentAdded?.(comments.length + 1);
     });
   };
 
-  // --------------------------------------------------
-  // Create Reply
-  // --------------------------------------------------
-
-  const handleReplySubmit = async (
-    parentId: string,
-    replyContent: string
-  ) => {
-    const trimmedContent = replyContent.trim();
-
-    if (!trimmedContent) {
-      return;
-    }
-
-    const result = await createComment(
-      postId,
-      trimmedContent,
-      parentId
-    );
-
-    if (!result.success || !result.comment) {
-      return;
-    }
-
-    const newComment = result.comment;
-
-    setComments((previousComments) => {
-      const updatedComments = appendReply(
-        previousComments,
-        parentId,
-        newComment
-      );
-
-      if (onCommentAdded) {
-        onCommentAdded(countComments(updatedComments));
-      }
-
-      return updatedComments;
-    });
+  const handleReply = async (parentId: string, replyContent: string) => {
+    const result = await createComment(postId, replyContent, parentId);
+    if (!result.success || !result.comment) return;
+    setComments((prev) => appendReply(prev, parentId, result.comment!));
+    onCommentAdded?.(comments.length + 1);
   };
-
-  // --------------------------------------------------
-  // Delete Comment
-  // --------------------------------------------------
 
   const handleCommentDeleted = (commentId: string) => {
-    setComments((previousComments) => {
-      const updatedComments = removeComment(
-        previousComments,
-        commentId
-      );
-
-      if (onCommentAdded) {
-        onCommentAdded(countComments(updatedComments));
-      }
-
-      return updatedComments;
-    });
+    setComments((prev) => removeComment(prev, commentId));
+    onCommentAdded?.(Math.max(0, comments.length - 1));
   };
 
   return (
-    <div className="mt-4 border-t pt-4">
-      {/* New Comment Form */}
-      <form
-        onSubmit={handleCreateComment}
-        className="mb-4 space-y-2"
-      >
-        <textarea
+    <div className="mt-4 space-y-4 border-t pt-4">
+      <form onSubmit={handleCreateComment} className="flex gap-2">
+        <input
+          type="text"
           value={inputContent}
-          onChange={(event) =>
-            setInputContent(event.target.value)
-          }
-          placeholder="Write a comment..."
-          rows={3}
+          onChange={(e) => setInputContent(e.target.value)}
           maxLength={2000}
-          disabled={isPending}
-          className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+          placeholder="Add a constructive thought or question..."
+          className="flex-1 rounded-lg border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
         />
-
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
-            {inputContent.length}/2000
-          </span>
-
-          <button
-            type="submit"
-            disabled={
-              isPending || !inputContent.trim()
-            }
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isPending ? "Commenting..." : "Comment"}
-          </button>
-        </div>
+        <button
+          type="submit"
+          disabled={isPending || !inputContent.trim()}
+          className="rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:bg-primary/90 disabled:opacity-50"
+        >
+          {isPending ? "Posting..." : "Comment"}
+        </button>
       </form>
 
-      {/* Comments */}
-      {comments.length === 0 ? (
-        <p className="py-3 text-center text-xs text-muted-foreground">
-          No comments yet. Be the first to comment.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {comments.map((comment) => (
+      <div className="space-y-3">
+        {comments.length > 0 ? (
+          comments.map((comment) => (
             <CommentCard
               key={comment.id}
               comment={comment}
               currentProfileId={currentProfileId}
-              onReply={handleReplySubmit}
+              onReply={handleReply}
               onCommentDeleted={handleCommentDeleted}
             />
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <p className="py-2 text-center text-xs text-muted-foreground">
+            No comments yet. Start the conversation!
+          </p>
+        )}
+      </div>
     </div>
   );
-}
-
-// --------------------------------------------------
-// Append Reply
-// --------------------------------------------------
-
-function appendReply(
-  comments: CommentItem[],
-  parentId: string,
-  newReply: CommentItem
-): CommentItem[] {
-  return comments.map((comment) => {
-    if (comment.id === parentId) {
-      return {
-        ...comment,
-        replies: [
-          ...(comment.replies ?? []),
-          newReply,
-        ],
-      };
-    }
-
-    if (
-      comment.replies &&
-      comment.replies.length > 0
-    ) {
-      return {
-        ...comment,
-        replies: appendReply(
-          comment.replies,
-          parentId,
-          newReply
-        ),
-      };
-    }
-
-    return comment;
-  });
-}
-
-// --------------------------------------------------
-// Remove Comment
-// --------------------------------------------------
-
-function removeComment(
-  comments: CommentItem[],
-  commentId: string
-): CommentItem[] {
-  return comments
-    .filter((comment) => comment.id !== commentId)
-    .map((comment) => {
-      if (
-        comment.replies &&
-        comment.replies.length > 0
-      ) {
-        return {
-          ...comment,
-          replies: removeComment(
-            comment.replies,
-            commentId
-          ),
-        };
-      }
-
-      return comment;
-    });
-}
-
-// --------------------------------------------------
-// Count Comments Including Nested Replies
-// --------------------------------------------------
-
-function countComments(
-  comments: CommentItem[]
-): number {
-  return comments.reduce((total, comment) => {
-    const repliesCount = comment.replies
-      ? countComments(comment.replies)
-      : 0;
-
-    return total + 1 + repliesCount;
-  }, 0);
 }
