@@ -1,12 +1,57 @@
-import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/prisma";
+import { notFound } from "next/navigation";
 import { getEvent } from "@/services/events/get-event";
-import { EventRegistrationButton } from "@/components/events/EventRegistrationButton";
-const labels: Record<string,string> = { WEBINAR:"Webinar", HACKATHON:"Hackathon", PLACEMENT_DRIVE:"Placement Drive", WORKSHOP:"Workshop" };
-export default async function EventDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params; const { userId } = await auth(); const profile = userId ? await prisma.profile.findUnique({ where:{ clerkId:userId }, select:{id:true} }) : null; const event = await getEvent(id, profile?.id);
-  if (!event) return <main className="mx-auto max-w-3xl px-4 py-12 text-center"><h1 className="text-xl font-semibold">Event not found</h1><Link href="/events" className="mt-4 inline-block text-primary underline">Back to events</Link></main>;
-  const canRegister = event.status === "APPROVED" && new Date(event.startsAt) > new Date();
-  return <main className="mx-auto max-w-3xl px-4 py-8"><Link href="/events" className="text-sm text-primary hover:underline">← Back to events</Link><article className="mt-5 rounded-xl border bg-card p-6 shadow-sm"><div className="flex flex-wrap gap-2"><span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{labels[event.type] ?? event.type}</span><span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">{event.status}</span></div><h1 className="mt-4 text-2xl font-bold">{event.title}</h1><p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{event.description}</p><div className="mt-6 grid gap-3 rounded-lg bg-muted/50 p-4 text-sm"><p><strong>Starts:</strong> {new Date(event.startsAt).toLocaleString()}</p>{event.endsAt && <p><strong>Ends:</strong> {new Date(event.endsAt).toLocaleString()}</p>}<p><strong>Organizer:</strong> {event.organizer.fullName} (@{event.organizer.username})</p><p><strong>Registrations:</strong> {event.registrationCount}</p></div>{event.status === "PENDING" && <p className="mt-5 rounded-md bg-yellow-500/10 px-3 py-2 text-sm">This event is awaiting administrator approval.</p>}{event.status === "REJECTED" && <div className="mt-5 rounded-md bg-red-500/10 px-3 py-2 text-sm">This event was rejected.{event.rejectionReason && <p className="mt-1 text-muted-foreground">Reason: {event.rejectionReason}</p>}</div>}{userId && profile && canRegister && <div className="mt-6"><EventRegistrationButton eventId={event.id} initialRegistered={event.isRegistered}/></div>}{!userId && canRegister && <p className="mt-6 text-sm text-muted-foreground">Sign in to register for this event.</p>}</article></main>;
+import RegisterEventButton from "@/components/events/RegisterEventButton";
+
+export const dynamic = "force-dynamic";
+
+export default async function EventDetailsPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const event = await getEvent(params.id);
+  if (!event) notFound();
+
+  return (
+    <main className="mx-auto w-full max-w-4xl p-6 md:p-8">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 md:p-8">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-400">
+            {event.type.replaceAll("_", " ")}
+          </span>
+          <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
+            {event.status}
+          </span>
+        </div>
+
+        <h1 className="mt-4 text-3xl font-bold text-white">{event.title}</h1>
+        <p className="mt-3 whitespace-pre-wrap text-zinc-300">{event.description}</p>
+
+        <div className="mt-6 grid gap-4 rounded-xl border border-zinc-800 bg-zinc-950/50 p-4 sm:grid-cols-2">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-zinc-500">Organizer</p>
+            <p className="mt-1 text-sm text-zinc-200">{event.organizer.fullName}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-zinc-500">Starts</p>
+            <p className="mt-1 text-sm text-zinc-200">{new Date(event.startsAt).toLocaleString()}</p>
+          </div>
+          {event.endsAt && (
+            <div>
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Ends</p>
+              <p className="mt-1 text-sm text-zinc-200">{new Date(event.endsAt).toLocaleString()}</p>
+            </div>
+          )}
+          <div>
+            <p className="text-xs uppercase tracking-wide text-zinc-500">Registrations</p>
+            <p className="mt-1 text-sm text-zinc-200">{event.registrationCount}</p>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <RegisterEventButton eventId={event.id} initialRegistered={event.isRegistered} startsAt={event.startsAt.toISOString()} />
+        </div>
+      </div>
+    </main>
+  );
 }

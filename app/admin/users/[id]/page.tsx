@@ -83,7 +83,9 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
             <ul className="space-y-1 text-sm text-zinc-300">
               {user.suspensionsRecieved.map((s) => (
                 <li key={s.id}>
-                  {s.reason} — {s.isActive ? "Active" : "Lifted"} ({new Date(s.createdAt).toLocaleDateString()})
+                  {s.reason} — {s.isActive ? "Active" : "Lifted"} ({new Date(s.createdAt).toLocaleDateString("en-US", {
+  timeZone: "UTC",
+})})
                 </li>
               ))}
             </ul>

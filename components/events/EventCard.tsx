@@ -1,16 +1,37 @@
 import Link from "next/link";
 
-const labels: Record<string, string> = { WEBINAR: "Webinar", HACKATHON: "Hackathon", PLACEMENT_DRIVE: "Placement Drive", WORKSHOP: "Workshop" };
-
-export function EventCard({ event }: { event: {
-  id: string; title: string; description: string; type: string; startsAt: string; endsAt: string | null;
+type EventCardEvent = {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  startsAt: Date;
   organizer: { fullName: string; username: string; avatarUrl: string | null };
-  registrationCount: number; isRegistered: boolean;
-} }) {
-  return <Link href={`/events/${event.id}`} className="block rounded-xl border bg-card p-5 shadow-sm transition hover:shadow-md">
-    <div className="flex flex-wrap gap-2"><span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{labels[event.type] ?? event.type}</span>{event.isRegistered && <span className="rounded-md bg-green-500/10 px-2 py-1 text-xs font-medium">Registered</span>}</div>
-    <h2 className="mt-3 text-lg font-semibold">{event.title}</h2>
-    <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{event.description}</p>
-    <div className="mt-4 space-y-1 text-sm text-muted-foreground"><p><strong>Starts:</strong> {new Date(event.startsAt).toLocaleString()}</p>{event.endsAt && <p><strong>Ends:</strong> {new Date(event.endsAt).toLocaleString()}</p>}<p><strong>Organizer:</strong> {event.organizer.fullName} (@{event.organizer.username})</p><p>{event.registrationCount} registered</p></div>
-  </Link>;
+  _count: { registrations: number };
+};
+
+export default function EventCard({ event }: { event: EventCardEvent }) {
+  return (
+    <Link
+      href={`/events/${event.id}`}
+      className="block rounded-2xl border border-zinc-800 bg-zinc-900 p-5 transition hover:border-blue-500/60"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-400">
+          {event.type.replaceAll("_", " ")}
+        </span>
+        <span className="text-xs text-zinc-500">
+          {event._count.registrations} {event._count.registrations === 1 ? "registration" : "registrations"}
+        </span>
+      </div>
+
+      <h2 className="mt-4 text-xl font-semibold text-white">{event.title}</h2>
+      <p className="mt-2 line-clamp-3 text-sm text-zinc-400">{event.description}</p>
+
+      <div className="mt-5 space-y-1 text-sm">
+        <p className="text-zinc-200">{new Date(event.startsAt).toLocaleString()}</p>
+        <p className="text-zinc-500">Organized by {event.organizer.fullName}</p>
+      </div>
+    </Link>
+  );
 }

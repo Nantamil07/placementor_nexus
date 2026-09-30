@@ -1,4 +1,15 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
-import { CreateEventForm } from "@/components/events/CreateEventForm";
-export default async function CreateEventPage() { const { userId } = await auth(); if (!userId) redirect("/sign-in"); return <main className="mx-auto max-w-3xl px-4 py-8"><CreateEventForm /></main>; }
+import CreateEventForm from "@/components/events/CreateEventForm";
+
+export const dynamic = "force-dynamic";
+
+export default function CreateEventPage() {
+  return (
+    <main className="mx-auto w-full max-w-3xl p-6 md:p-8">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-white">Create an event</h1>
+        <p className="mt-1 text-zinc-400">New events are submitted for admin approval before appearing publicly.</p>
+      </div>
+      <CreateEventForm />
+    </main>
+  );
+}

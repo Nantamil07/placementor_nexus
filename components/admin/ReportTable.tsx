@@ -52,7 +52,9 @@ export default function ReportTable({ reports }: { reports: AdminReportRow[] }) 
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[r.status]}`}>{r.status}</span>
                 </td>
-                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(r.createdAt).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(r.createdAt).toLocaleDateString("en-US", {
+  timeZone: "UTC",
+})}</td>
                 <td className="px-4 py-3">
                   {r.status === "PENDING" ? (
                     <div className="flex items-center gap-1.5">

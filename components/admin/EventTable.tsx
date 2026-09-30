@@ -45,7 +45,9 @@ export default function EventTable({ events }: { events: AdminEventRow[] }) {
                 <td className="px-4 py-3 font-medium text-zinc-100">{e.title}</td>
                 <td className="px-4 py-3 text-zinc-400">{e.type.replace("_", " ")}</td>
                 <td className="px-4 py-3 text-zinc-400">{e.organizerName}</td>
-                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(e.startsAt).toLocaleString()}</td>
+                <td className="px-4 py-3 text-xs text-zinc-500">{new Date(e.startsAt).toLocaleString("en-US", {
+  timeZone: "UTC",
+})}</td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[e.status]}`}>{e.status}</span>
                 </td>

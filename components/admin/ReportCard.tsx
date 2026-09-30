@@ -50,7 +50,9 @@ export default function ReportCard({ report }: { report: ReportCardData }) {
         </div>
         <div>
           <dt className="text-xs text-zinc-500">Filed</dt>
-          <dd className="text-zinc-200">{new Date(report.createdAt).toLocaleString()}</dd>
+          <dd className="text-zinc-200">{new Date(report.createdAt).toLocaleString("en-US", {
+  timeZone: "UTC",
+})}</dd>
         </div>
         {report.resolvedByName && (
           <div>
