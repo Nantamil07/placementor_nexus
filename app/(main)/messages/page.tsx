@@ -30,7 +30,14 @@ export default async function MessagesPage({
   const conversations = await getConversations();
 
   if (conversations.length === 0) {
-    redirect("/network");
+    return (
+      <MessagesClient
+        conversations={[]}
+        initialMessages={[]}
+        currentProfileId={profile.id}
+        initialConversationId=""
+      />
+    );
   }
 
   const params = await searchParams;

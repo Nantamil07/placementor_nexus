@@ -31,7 +31,7 @@ export async function requireAdmin(): Promise<Profile> {
   const profile = await prisma.profile.findUnique({ where: { clerkId: userId } });
 
   if (!profile || profile.isSuspended || !isAdminRole(profile.role)) {
-    redirect("/");
+    redirect("/feed");
   }
 
   return profile;

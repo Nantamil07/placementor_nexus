@@ -1,8 +1,8 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { communitiesStore, communityMembersStore } from "./get-community";
 
 export async function toggleCommunityMembership(communityId: string): Promise<{
   success: boolean;
@@ -15,28 +15,57 @@ export async function toggleCommunityMembership(communityId: string): Promise<{
     return { success: false, isMember: false, memberCount: 0, error: "Unauthorized" };
   }
 
-  const community = communitiesStore.find((c) => c.id === communityId);
-  if (!community) {
+  const profile = await prisma.profile.findUnique({
+    where: { clerkId: userId },
+    select: { id: true },
+  });
+
+  if (!profile) {
+    return { success: false, isMember: false, memberCount: 0, error: "Profile not found" };
+  }
+
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { id: true, slug: true, isRemoved: true },
+  });
+
+  if (!community || community.isRemoved) {
     return { success: false, isMember: false, memberCount: 0, error: "Community not found" };
   }
 
-  const membershipKey = `${userId}_${communityId}`;
-  const alreadyMember = communityMembersStore.has(membershipKey);
+  const existingMember = await prisma.communityMember.findUnique({
+    where: {
+      communityId_profileId: {
+        communityId,
+        profileId: profile.id,
+      },
+    },
+  });
 
-  if (alreadyMember) {
-    communityMembersStore.delete(membershipKey);
-    community.memberCount = Math.max(0, community.memberCount - 1);
+  if (existingMember) {
+    await prisma.communityMember.delete({
+      where: { id: existingMember.id },
+    });
   } else {
-    communityMembersStore.add(membershipKey);
-    community.memberCount += 1;
+    await prisma.communityMember.create({
+      data: {
+        communityId,
+        profileId: profile.id,
+        role: "MEMBER",
+      },
+    });
   }
+
+  const memberCount = await prisma.communityMember.count({
+    where: { communityId, isBanned: false },
+  });
 
   revalidatePath("/communities");
   revalidatePath(`/communities/${community.slug}`);
 
   return {
     success: true,
-    isMember: !alreadyMember,
-    memberCount: community.memberCount,
+    isMember: !existingMember,
+    memberCount,
   };
 }

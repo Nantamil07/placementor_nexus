@@ -1,6 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getFeed } from "@/services/posts/get-feed";
@@ -21,33 +19,7 @@ export default async function FeedPage() {
   const { posts, hasMore } = await getFeed(1, 10, profile.id);
 
   return (
-    <div className="min-h-screen bg-muted/20 pb-16">
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur-sm sm:px-8">
-        <div className="flex items-center gap-6">
-          <Link href="/feed" className="text-xl font-bold tracking-tight text-primary">
-            Placementor Nexus
-          </Link>
-          <nav className="hidden items-center gap-4 text-sm font-medium sm:flex">
-            <Link href="/feed" className="text-primary font-semibold">
-              Feed
-            </Link>
-            <Link href="/profile" className="text-muted-foreground hover:text-foreground">
-              Profile
-            </Link>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Link
-            href="/profile"
-            className="hidden text-xs font-medium text-muted-foreground hover:text-foreground sm:inline-block"
-          >
-            Signed in as <span className="font-semibold text-foreground">@{profile.username}</span>
-          </Link>
-          <UserButton afterSignOutUrl="/sign-in" />
-        </div>
-      </header>
-
+    <div className="pb-16">
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">

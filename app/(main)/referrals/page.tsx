@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -16,14 +17,8 @@ export default async function ReferralsPage() {
   });
 
   if (!profile) {
-    return (
-      <main className="p-8">
-        <h1 className="text-3xl font-bold">Referral Hub</h1>
-        <p className="mt-3 text-zinc-400">
-          Complete your profile before using referrals.
-        </p>
-      </main>
-    );
+    redirect("/setup-profile");
+    return null;
   }
 
   const [referrals, candidates, companies] = await Promise.all([

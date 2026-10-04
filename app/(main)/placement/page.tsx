@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getDashboardData } from "@/services/placement/get-dashboard";
@@ -30,14 +31,8 @@ export default async function PlacementPage() {
   });
 
   if (!profile) {
-    return (
-      <main className="p-8">
-        <h1 className="text-3xl font-bold">Placement Dashboard</h1>
-        <p className="mt-3 text-muted-foreground">
-          Complete your profile before using the placement dashboard.
-        </p>
-      </main>
-    );
+    redirect("/setup-profile");
+    return null;
   }
 
   const dashboard = await getDashboardData(profile.id);

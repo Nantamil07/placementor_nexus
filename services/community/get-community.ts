@@ -1,10 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
 
 export interface Community {
   id: string;
   slug: string;
   name: string;
-  description: string;
+  description: string | null;
   bannerUrl?: string | null;
   avatarUrl?: string | null;
   memberCount: number;
@@ -12,80 +13,101 @@ export interface Community {
   createdAt: string;
 }
 
-const globalForCommunities = globalThis as unknown as {
-  nexusCommunities: Community[] | undefined;
-  nexusCommunityMembers: Set<string> | undefined; // `${userId}_${communityId}`
-};
-
-export const initialCommunities: Community[] = [
-  {
-    id: "comm_1",
-    slug: "interview-prep",
-    name: "Tech Interview Prep",
-    description: "DSA patterns, mock interview pairs, LeetCode discussion, and system design drills.",
-    bannerUrl: null,
-    avatarUrl: null,
-    memberCount: 342,
-    category: "Preparation",
-    createdAt: new Date("2026-01-01").toISOString(),
-  },
-  {
-    id: "comm_2",
-    slug: "system-design",
-    name: "System Design Hub",
-    description: "High-level architecture, scalability trade-offs, microservices, and database indexing.",
-    bannerUrl: null,
-    avatarUrl: null,
-    memberCount: 215,
-    category: "Architecture",
-    createdAt: new Date("2026-01-05").toISOString(),
-  },
-  {
-    id: "comm_3",
-    slug: "resume-roast",
-    name: "Resume & Portfolio Clinic",
-    description: "Get constructive, brutal feedback on your resume from seniors, mentors, and recruiters.",
-    bannerUrl: null,
-    avatarUrl: null,
-    memberCount: 189,
-    category: "Career",
-    createdAt: new Date("2026-01-10").toISOString(),
-  },
-  {
-    id: "comm_4",
-    slug: "off-campus",
-    name: "Off-Campus Opportunities",
-    description: "Verified referral postings, startup openings, and early-career remote roles.",
-    bannerUrl: null,
-    avatarUrl: null,
-    memberCount: 410,
-    category: "Jobs",
-    createdAt: new Date("2026-01-12").toISOString(),
-  },
-];
-
-export const communitiesStore = globalForCommunities.nexusCommunities ?? initialCommunities;
-export const communityMembersStore = globalForCommunities.nexusCommunityMembers ?? new Set<string>();
-
-if (!globalForCommunities.nexusCommunities) globalForCommunities.nexusCommunities = communitiesStore;
-if (!globalForCommunities.nexusCommunityMembers) globalForCommunities.nexusCommunityMembers = communityMembersStore;
-
 export async function getCommunities(): Promise<(Community & { isMember: boolean })[]> {
   const { userId } = await auth();
 
-  return communitiesStore.map((comm) => ({
-    ...comm,
-    isMember: userId ? communityMembersStore.has(`${userId}_${comm.id}`) : false,
+  let currentProfileId: string | null = null;
+  if (userId) {
+    const profile = await prisma.profile.findUnique({
+      where: { clerkId: userId },
+      select: { id: true },
+    });
+    currentProfileId = profile?.id ?? null;
+  }
+
+  const communities = await prisma.community.findMany({
+    where: { isRemoved: false },
+    orderBy: { createdAt: "desc" },
+    include: {
+      _count: {
+        select: {
+          members: {
+            where: { isBanned: false },
+          },
+        },
+      },
+      members: currentProfileId
+        ? {
+            where: {
+              profileId: currentProfileId,
+              isBanned: false,
+            },
+            select: { id: true },
+          }
+        : false,
+    },
+  });
+
+  return communities.map((comm) => ({
+    id: comm.id,
+    slug: comm.slug,
+    name: comm.name,
+    description: comm.description ?? "",
+    bannerUrl: null,
+    avatarUrl: null,
+    memberCount: comm._count.members,
+    category: "General",
+    createdAt: comm.createdAt.toISOString(),
+    isMember: Array.isArray(comm.members) && comm.members.length > 0,
   }));
 }
 
 export async function getCommunityBySlug(slug: string): Promise<(Community & { isMember: boolean }) | null> {
   const { userId } = await auth();
-  const comm = communitiesStore.find((c) => c.slug === slug);
+
+  let currentProfileId: string | null = null;
+  if (userId) {
+    const profile = await prisma.profile.findUnique({
+      where: { clerkId: userId },
+      select: { id: true },
+    });
+    currentProfileId = profile?.id ?? null;
+  }
+
+  const comm = await prisma.community.findFirst({
+    where: { slug, isRemoved: false },
+    include: {
+      _count: {
+        select: {
+          members: {
+            where: { isBanned: false },
+          },
+        },
+      },
+      members: currentProfileId
+        ? {
+            where: {
+              profileId: currentProfileId,
+              isBanned: false,
+            },
+            select: { id: true },
+          }
+        : false,
+    },
+  });
+
   if (!comm) return null;
 
   return {
-    ...comm,
-    isMember: userId ? communityMembersStore.has(`${userId}_${comm.id}`) : false,
+    id: comm.id,
+    slug: comm.slug,
+    name: comm.name,
+    description: comm.description ?? "",
+    bannerUrl: null,
+    avatarUrl: null,
+    memberCount: comm._count.members,
+    category: "General",
+    createdAt: comm.createdAt.toISOString(),
+    isMember: Array.isArray(comm.members) && comm.members.length > 0,
   };
 }

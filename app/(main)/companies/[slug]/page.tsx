@@ -17,15 +17,25 @@ export default async function CompanyPage({
   }
 
   return (
-    <main className="p-8">
-      <div className="flex items-start justify-between gap-4">
-        <CompanyHeader company={company} />
-
-        <CompanyFollowButton
-          companyId={company.id}
-          initialFollowing={false}
-        />
+    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div className="mb-6">
+        <Link
+          href="/companies"
+          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          ← Back to all companies
+        </Link>
       </div>
+
+      <div className="rounded-2xl border bg-card p-6 shadow-xs sm:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <CompanyHeader company={company} />
+
+          <CompanyFollowButton
+            companyId={company.id}
+            initialFollowing={false}
+          />
+        </div>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold">About</h2>
@@ -58,6 +68,7 @@ export default async function CompanyPage({
           </div>
         </section>
       )}
+      </div>
     </main>
   );
 }

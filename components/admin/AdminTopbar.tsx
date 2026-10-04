@@ -26,6 +26,12 @@ export default function AdminTopbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        <a
+          href="/feed"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+        >
+          ← Main App
+        </a>
         <UserButton afterSignOutUrl="/sign-in" />
       </div>
     </header>
