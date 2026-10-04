@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import CompanyCard from "@/components/company/CompanyCard";
 import { getCompanies } from "@/services/company/get-companies";
 

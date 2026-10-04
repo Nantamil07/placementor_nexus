@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import JobCard from "@/components/jobs/JobCard";
 import { getJobs } from "@/services/jobs/get-jobs";
 
