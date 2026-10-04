@@ -8,9 +8,14 @@ import { MessageBubble } from "./MessageBubble";
 interface ChatWindowProps {
   conversation: Conversation;
   initialMessages: ChatMessage[];
+  currentProfileId: string;
 }
 
-export function ChatWindow({ conversation, initialMessages }: ChatWindowProps) {
+export function ChatWindow({
+  conversation,
+  initialMessages,
+  currentProfileId,
+}: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -22,7 +27,7 @@ export function ChatWindow({ conversation, initialMessages }: ChatWindowProps) {
     const optimisticMsg: ChatMessage = {
       id: `temp_${Date.now()}`,
       conversationId: conversation.id,
-      senderId: "current_user",
+      senderId: currentProfileId,
       text: input.trim(),
       createdAt: new Date().toISOString(),
       isSeen: false,
@@ -69,7 +74,7 @@ export function ChatWindow({ conversation, initialMessages }: ChatWindowProps) {
           <MessageBubble
             key={msg.id}
             message={msg}
-            isOwn={msg.senderId === "current_user"}
+            isOwn={msg.senderId === currentProfileId}
           />
         ))}
 

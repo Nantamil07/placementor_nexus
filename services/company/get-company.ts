@@ -1,5 +1,19 @@
-import { getCompanies } from './get-companies';
-export async function getCompany(slug:string){
- const companies=await getCompanies();
- return companies.find(c=>c.slug===slug)??companies[0];
+import { prisma } from "@/lib/prisma";
+
+export async function getCompany(slug: string) {
+  return prisma.company.findUnique({
+    where: {
+      slug,
+    },
+    include: {
+      jobs: {
+        where: {
+          status: "APPROVED",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+    },
+  });
 }

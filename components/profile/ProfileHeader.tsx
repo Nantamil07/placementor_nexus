@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { UserRole } from "@prisma/client";
 
 interface ProfileHeaderProps {
@@ -49,6 +50,13 @@ export function ProfileHeader({
             <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
               {role.replace("_", " ")}
             </span>
+
+            <Link
+              href="/profile/edit"
+              className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-muted"
+            >
+              Edit Profile
+            </Link>
           </div>
         </div>
 

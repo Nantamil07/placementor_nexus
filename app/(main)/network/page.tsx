@@ -3,6 +3,7 @@ import { getNetworkData } from "@/services/network/get-connections";
 import { acceptConnectionRequest } from "@/services/network/accept-request";
 import { ConnectButton } from "@/components/profile/ConnectButton";
 import { FollowButton } from "@/components/profile/FollowButton";
+import { MessageButton } from "@/components/profile/MessageButton";
 
 export default async function NetworkPage() {
   await requireAuth();
@@ -95,6 +96,7 @@ export default async function NetworkPage() {
                 <div className="mt-5 flex items-center gap-2 border-t pt-3">
                   <ConnectButton targetUserId={peer.id} />
                   <FollowButton targetUserId={peer.id} />
+                  <MessageButton targetUserId={peer.id} />
                 </div>
               </div>
             ))}
@@ -110,17 +112,23 @@ export default async function NetworkPage() {
               {connections.map((conn) => (
                 <div
                   key={conn.id}
-                  className="flex items-center gap-3 rounded-lg border bg-background p-3"
+                  className="flex items-center justify-between gap-3 rounded-lg border bg-background p-3"
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                    {conn.fullName.charAt(0)}
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {conn.fullName.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-foreground">
+                        {conn.fullName}
+                      </h4>
+                      <p className="line-clamp-1 text-[11px] text-muted-foreground">
+                        {conn.headline}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-foreground">{conn.fullName}</h4>
-                    <p className="text-[11px] text-muted-foreground line-clamp-1">
-                      {conn.headline}
-                    </p>
-                  </div>
+
+                  <MessageButton targetUserId={conn.id} />
                 </div>
               ))}
             </div>

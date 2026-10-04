@@ -11,6 +11,7 @@ export interface NetworkUser {
   headline: string | null;
   role: string;
   mutualCount: number;
+  isFollowing: boolean;
 }
 
 export interface ConnectionRequestItem {
@@ -22,94 +23,204 @@ export interface ConnectionRequestItem {
   sender: NetworkUser;
 }
 
-const globalForNetwork = globalThis as unknown as {
-  nexusConnectionRequests: ConnectionRequestItem[] | undefined;
-  nexusFollows: Set<string> | undefined;
-};
-
-export const defaultSuggestions: NetworkUser[] = [
-  {
-    id: "sugg_1",
-    fullName: "Rohan Varma",
-    username: "rohan_v",
-    avatarUrl: null,
-    headline: "Placement Representative | Final Year ECE",
-    role: "STUDENT",
-    mutualCount: 14,
-  },
-  {
-    id: "sugg_2",
-    fullName: "Priya Sundar",
-    username: "priya_s",
-    avatarUrl: null,
-    headline: "Incoming SDE @ Microsoft | Alumni 2025",
-    role: "ALUMNI",
-    mutualCount: 22,
-  },
-  {
-    id: "sugg_3",
-    fullName: "Siddharth Nair",
-    username: "sid_recruiter",
-    avatarUrl: null,
-    headline: "University Talent Acquisition Lead @ Atlassian",
-    role: "RECRUITER",
-    mutualCount: 8,
-  },
-];
-
-export const connectionRequestsStore: ConnectionRequestItem[] =
-  globalForNetwork.nexusConnectionRequests ?? [
-    {
-      id: "req_seed_1",
-      senderId: "seed_student_2",
-      receiverId: "current_user",
-      status: "PENDING",
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-      sender: {
-        id: "seed_student_2",
-        fullName: "Ananya Iyer",
-        username: "ananya_ai",
-        avatarUrl: null,
-        headline: "Research Intern in NLP | Senior CSE",
-        role: "STUDENT",
-        mutualCount: 19,
-      },
-    },
-  ];
-
-export const followsStore: Set<string> =
-  globalForNetwork.nexusFollows ?? new Set<string>();
-
-if (!globalForNetwork.nexusConnectionRequests) {
-  globalForNetwork.nexusConnectionRequests = connectionRequestsStore;
-}
-if (!globalForNetwork.nexusFollows) {
-  globalForNetwork.nexusFollows = followsStore;
-}
-
 export async function getNetworkData() {
   const { userId } = await auth();
 
-  const profile = userId
-    ? await prisma.profile.findUnique({
-        where: { clerkId: userId },
-        select: { id: true },
-      })
-    : null;
+  if (!userId) {
+    return {
+      pendingRequests: [],
+      connections: [],
+      suggestions: [],
+    };
+  }
 
-  const currentProfileId = profile?.id ?? "current_user";
+  const profile = await prisma.profile.findUnique({
+    where: { clerkId: userId },
+    select: { id: true },
+  });
 
-  const pendingRequests = connectionRequestsStore.filter(
-    (req) => (req.receiverId === currentProfileId || req.receiverId === "current_user") && req.status === "PENDING"
+  if (!profile) {
+    return {
+      pendingRequests: [],
+      connections: [],
+      suggestions: [],
+    };
+  }
+
+  const currentProfileId = profile.id;
+
+  const [pending, acceptedConnections, followedUsers, people] =
+    await Promise.all([
+      prisma.connection.findMany({
+        where: {
+          receiverId: currentProfileId,
+          status: "PENDING",
+        },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              avatarUrl: true,
+              headline: true,
+              role: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      }),
+
+      prisma.connection.findMany({
+        where: {
+          status: "ACCEPTED",
+          OR: [
+            { senderId: currentProfileId },
+            { receiverId: currentProfileId },
+          ],
+        },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              avatarUrl: true,
+              headline: true,
+              role: true,
+            },
+          },
+          receiver: {
+            select: {
+              id: true,
+              fullName: true,
+              username: true,
+              avatarUrl: true,
+              headline: true,
+              role: true,
+            },
+          },
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+      }),
+
+      prisma.follow.findMany({
+        where: {
+          followerId: currentProfileId,
+        },
+        select: {
+          followingId: true,
+        },
+      }),
+
+      prisma.profile.findMany({
+        where: {
+          id: {
+            not: currentProfileId,
+          },
+          isSuspended: false,
+          isOnboarded: true,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          avatarUrl: true,
+          headline: true,
+          role: true,
+        },
+        orderBy: {
+          fullName: "asc",
+        },
+        take: 30,
+      }),
+    ]);
+
+  const followingIds = new Set(
+    followedUsers.map((follow) => follow.followingId)
   );
 
-  const accepted = connectionRequestsStore
-    .filter((req) => req.status === "ACCEPTED")
-    .map((req) => req.sender);
+  const connectedIds = new Set<string>();
+
+  for (const connection of acceptedConnections) {
+    connectedIds.add(
+      connection.senderId === currentProfileId
+        ? connection.receiverId
+        : connection.senderId
+    );
+  }
+
+  const pendingOutgoing = await prisma.connection.findMany({
+    where: {
+      senderId: currentProfileId,
+      status: "PENDING",
+    },
+    select: {
+      receiverId: true,
+    },
+  });
+
+  const pendingOutgoingIds = new Set(
+    pendingOutgoing.map((request) => request.receiverId)
+  );
+
+  const pendingRequests: ConnectionRequestItem[] = pending.map((request) => ({
+    id: request.id,
+    senderId: request.senderId,
+    receiverId: request.receiverId,
+    status: "PENDING",
+    createdAt: request.createdAt.toISOString(),
+    sender: {
+      id: request.sender.id,
+      fullName: request.sender.fullName,
+      username: request.sender.username,
+      avatarUrl: request.sender.avatarUrl,
+      headline: request.sender.headline,
+      role: request.sender.role,
+      mutualCount: 0,
+      isFollowing: followingIds.has(request.sender.id),
+    },
+  }));
+
+  const connections = acceptedConnections.map((connection) => {
+    const person =
+      connection.senderId === currentProfileId
+        ? connection.receiver
+        : connection.sender;
+
+    return {
+      id: person.id,
+      fullName: person.fullName,
+      username: person.username,
+      avatarUrl: person.avatarUrl,
+      headline: person.headline,
+      role: person.role,
+      mutualCount: 0,
+      isFollowing: followingIds.has(person.id),
+    };
+  });
+
+  const suggestions: NetworkUser[] = people
+    .filter((person) => !connectedIds.has(person.id))
+    .filter((person) => !pendingOutgoingIds.has(person.id))
+    .map((person) => ({
+      id: person.id,
+      fullName: person.fullName,
+      username: person.username,
+      avatarUrl: person.avatarUrl,
+      headline: person.headline,
+      role: person.role,
+      mutualCount: 0,
+      isFollowing: followingIds.has(person.id),
+    }));
 
   return {
     pendingRequests,
-    connections: accepted,
-    suggestions: defaultSuggestions,
+    connections,
+    suggestions,
   };
 }
